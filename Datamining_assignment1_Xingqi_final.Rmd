@@ -1,0 +1,449 @@
+---
+title: "Datamining_assignment1_Xingqi"
+author: "Xingqi"
+date: "January 22, 2015"
+output: pdf_document
+---
+
+Use the GermanCredit data (package caret) in R or from UCI Machine Learning’s website.
+
+###1. Perform cluster analysis of the data for market segmentation.
+
+load the dataset and take first two columns.
+```{r message=FALSE, warning=FALSE}
+library(caret)
+data(GermanCredit)
+#str(GermanCredit)
+dim(GermanCredit)
+GermanCredit$Class<-as.numeric(GermanCredit$Class)
+```
+
+cluster analysis of the marketseg
+
+```{r message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(hclust(dist(GermanCredit), "single"),col=1)
+plot(hclust(dist(GermanCredit), "complete"),col=1)
+plot(hclust(dist(GermanCredit), "average"),col=1)
+plot(hclust(dist(GermanCredit), "centroid"),col=1)
+```
+
+From the above graphs, I will select the Hierarchical clustering with complete linkage or average clustering to get balanced groups. I cut the dendrogram to get 5 clusters as below.
+
+```{r message=FALSE, warning=FALSE}
+classhc.average<-cutree(hclust(dist(GermanCredit), "average"),5)
+table(classhc.average)
+classhc<-cutree(hclust(dist(GermanCredit), "complete"),5)
+table(classhc)
+```
+
+```{r}
+plot(Duration~Amount, data=GermanCredit,
+     xlab="Amount",ylab="Duration",
+     col=classhc+1,
+     main="Hierarchical clustering")
+plot(Duration~Amount, data=GermanCredit,
+     xlab="Amount",ylab="Duration",
+     col=GermanCredit[,10]+1,
+     main="original Credit Class")
+```
+
+I would choose complete linkage to get balanced segmentation if I need to use Hierarchical clustering. However, the clusters pattern from Hierarchical clustering is not fit with orignial credit calss.
+
+###2. Select the numeric variables that you think are appropriate and useful.
+
+To determine which variables are important to classification, the appropriate variables were put into a decision tree. 
+
+```{r}
+dim(GermanCredit)
+#str(GermanCredit)
+
+```
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(party)
+```
+
+```{r}
+forest <- ctree(Class ~ Duration
+                +Amount
+                +InstallmentRatePercentage
+                +Age
+                +Telephone 
+                +CheckingAccountStatus.0.to.200
+                +CheckingAccountStatus.gt.200
+                +CheckingAccountStatus.none
+                +CreditHistory.NoCredit.AllPaid
+                +CreditHistory.ThisBank.AllPaid
+                +CreditHistory.PaidDuly
+                +CreditHistory.Delay
+                +CreditHistory.Critical
+                +Property.RealEstate
+                +Housing.Rent
+                +Housing.Own
+                +Housing.ForFree, data=GermanCredit);forest
+
+```
+
+
+Take the 8 important variables into a new subset of GermanCredit. I name it as Germancs. In last column is the orignal classification of credit class.
+
+```{r}
+Germancs<-GermanCredit[,c(1,2,12,13,14,15,16,19,10)]
+dim(Germancs)
+names(Germancs)
+```
+
+
+
+
+###3. Use kmeans and komeans (I will provide the R code for komeans)
+
+I used kmeans to classify the dataset into 3 clusters as below.
+
+```{r}
+
+Germancskmeans=kmeans(Germancs,centers=3,nstart=50)
+names(Germancskmeans)
+Germancskmeans$centers
+Germancskmeans$size
+rsquared.kmeans<-Germancskmeans$betweenss/Germancskmeans$totss;rsquared.kmeans
+```
+
+There are 9 different outputs from kmeans command as followings, cluster, centers, totss, withinss, tot.withinss, betweenss, size, iter and ifault. From centers output of kmeans, the mean of all variables in the clusters are distinct from other clusters. The cluster sizes are 216  56 728. Rsquared value is high with a value of 0.839, which means that the kmeans cluster is good fit with dataset. 
+From centers of different clusters, the longer Duration and higher Amount correspond to bad credit class. This doesn't make sense in financial field.
+The plot of a variable, Amount, is as below. The segmentation is good for this variable. But this pattern is different comparing with original classification of credit (good or bad).This solution doesn't interpret the credit information very well. 
+
+```{r}
+
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancskmeans$cluster+1,
+     main="kmeans")
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancs[,9]+1,
+     main="original Credit Class")
+```
+
+
+#### scaled data
+
+Next, I  used scaled data to perform kmeans analysis.
+
+```{r}
+
+Germancskmeans2=kmeans(scale(Germancs),centers=3,nstart=50)
+Germancskmeans2$centers
+Germancskmeans2$size
+rsquared.kmeans2<-Germancskmeans2$betweenss/Germancskmeans2$totss;rsquared.kmeans2
+
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancskmeans2$cluster+1,
+     main="kmeans scaled data")
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancs[,9]+1,
+     main="original Credit Class2")
+
+```
+
+The center values of most of variables in this kmeans cluster are well segamentated from other clusters. The sizes of clusters are similar distributed comparing with kmean analysis of the orignial data. The R squared value is low, which is  0.3086147.This mode is less fit with dataset comparing with above kmean cluster.However, the segmentation pattern is closer to original credit class than kmeans cluster with original dataset. This means the scaled data perform better to interpret the credit information in the dataset. 
+
+####komeans
+
+```{r}
+source('~/Desktop/Data mining/week2/komeans.txt', encoding='UTF-8')       
+library(knitr)
+z=komeans(Germancs,nclust=4,lnorm=2,tolerance=.001,nloops = 50,seed=3)
+names(z)
+z$Centroids
+table(z$Group)
+z$VAF
+
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=z$Group+1,
+     main="komeans")
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancs[,9]+1,
+     main="original Credit Class 3")
+
+```
+
+The centroids of most of variables are dinstinct from each cluster. The sizes of clusters are more envenly distributed comparing with kmean analysis. The R squared value is not high, which is 0.47. From the plot of one variable, the separation pattern is closer to original credit class comparing with the above kmeans clusters segmentation. This means komeans clusters is better to interpret the credit information than above kmeans clusters segmentation. 
+
+###4. Generate the K-means solution. 
+Extract 2-10 k-means clusters using the variable set. Present the Variance Accounted For. Remember: the local optima problem is big for all the clustering and latent class methods. So remember to run them from at least 50-100 random starts.
+
+Split the dataset into two. One is used as training dataset for k-means clusters. One is used as validation dataset.
+
+```{r}
+length <- nrow(Germancs)
+L<-1:length
+training<-sample(L,700,replace=FALSE)
+trainingdata<- Germancs[training,]
+validationdata<- Germancs[-training,]
+
+```
+
+Extract 3 kmeans clusters with 3, 4 or 5 clusters.
+
+```{r}
+Germancs.kmeans3=kmeans(Germancs,centers=3,nstart=50)
+Germancs.kmeans4=kmeans(Germancs,centers=4,nstart=50)
+Germancs.kmeans5=kmeans(Germancs,centers=5,nstart=50)
+
+```
+
+Interpret the output of kmeans function
+
+```{r}
+names(Germancs.kmeans5)
+```
+
+present the variance
+percent of between_SS/total_SS (VAF, Rsquared)
+
+```{r}
+VAF3<-(Germancs.kmeans3$betweenss/Germancs.kmeans3$totss)
+VAF4<-(Germancs.kmeans4$betweenss/Germancs.kmeans4$totss)
+VAF5<-(Germancs.kmeans5$betweenss/Germancs.kmeans5$totss)
+cbind(VAF3,VAF4,VAF5)
+```
+
+The VAF(R squared) values are list above. These values are high, which suggests that these models are very good fit to the dataset.
+
+###5. Perform Scree tests to choose appropriate number of k-means clusters
+
+Built a function to 
+
+```{r}
+screetest <- function(data, seed=1234){
+         VAF<-c()
+         for (i in 1:15){
+                set.seed(seed)
+                VAF[i]<-((kmeans(data, centers=i,nstart=50))$betweenss)/((kmeans(data, centers=i,nstart=50))$totss)
+                }
+        print(paste0(VAF))
+        }    
+```
+
+Using the training dataset to test which number is appropriate.
+
+```{r}
+results<-screetest(trainingdata)
+screetestresult<-cbind(1:15,results)
+colnames(screetestresult)<-c("Number of clusters","VAF")
+screetestresult
+
+```
+
+The VAF(Rsquared) value is increasing slow after cluster 3 or 4. I will take 4 clusters for further kmean analysis.
+
+###6. Show the scree plot.
+```{r}
+ plot(screetestresult, type="b", xlab="Number of Clusters",
+             ylab="R squared")
+```
+
+From the graph, the VAF increase slow after 3 or 4 clusters. So it seems that 4 clusters k mean analysis is appropriate to this dataset.
+
+###7. Choose 1 K-means solution to retain from the many solutions that you have generated
+
+a. Use the criteria of Variance Accounted For,
+
+```{r}
+set.seed(1234)
+cluster4 <-kmeans(trainingdata, centers=4,nstart=50)
+VAF.train<-cluster4$betweenss/cluster4$totss;VAF.train
+```
+
+b. Interpretability of the segments
+
+```{r}
+cluster4$centers
+cluster4$size
+
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=cluster4$cluster+1,
+     main="kmeans 4 clusters")
+
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancs[,9]+1,
+     main="original Credit Class 4")
+
+```
+
+From the centers of this segmentation, the seperation of most of variables is performed very well, which suggest that these variables are well segmented from this kmean analysis. The cluster sizes are OK. When the class value is high(means better credit classification) in cluster1 and 3, the corresponding values of amount, duration,CheckingAccountStatus.0.to.200, CreditHistory.NoCredit.AllPaid, and CreditHistory.ThisBank.AllPaidare are low. This result seems confusion in real situation. In reality, we would expect a person of good credit classification with high amount and duration of credit.
+
+c. Doing well in Holdout. For Holdout, use the centers (means) generated from the training set k-means solution, as the starting point for performing k-means in holdout. Use VAF and relative cluster sizes as measures of stability.
+
+```{r}
+
+val.cluster4 <-kmeans(validationdata, centers=(cluster4$centers),nstart=50)
+VAF.val4<-val.cluster4$betweenss/val.cluster4$totss
+cbind(VAF.train,VAF.val4)
+```
+
+The VAF value is 0.9244857, which is very close to the value from training dataset. This result suggests the model predicts very well. 
+
+```{r}
+mean.difference<-(cluster4$centers-val.cluster4$centers); mean.difference
+```
+
+The centers of validation dataset are very close to the centers of training dataset. This means the prediction of this k-means clustering is good.
+
+```{r}
+cluster.percent<-rbind((cluster4$size)/700,(val.cluster4$size)/300); cluster.percent
+```
+
+The relative cluster size of training dataset and validation dataset is very close. This further confirm the prediction of this k means clusters model is very good.
+
+###8. Generate 3-5 komeans clusters. Remember to start from 50-100 random starts. (NOTE: komeans, in its current form, does not give you an option of starting from a given set of means). Hence you cannot easily perform holdout validation.
+
+Generate komeans clusters with 3,4 or 5 clusters on training data as below.
+
+```{r}
+set.seed(1234)
+z3=komeans(trainingdata,nclust=3,lnorm=2,tolerance=.001,nloops = 50,seed=3)
+z4=komeans(trainingdata,nclust=4,lnorm=2,tolerance=.001,nloops = 50,seed=3)
+z5=komeans(trainingdata,nclust=5,lnorm=2,tolerance=.001,nloops = 50,seed=3)
+
+```
+
+
+```{r}
+train.VAF<-cbind(z3$VAF,z4$VAF,z5$VAF);train.VAF
+```
+
+The VAF of 5-komean clusters is higher comparing with 3-komeans clusters and 4-komeans clusters. 
+
+Check the resut with validation dataset.
+
+```{r}
+z3.val=komeans(validationdata,nclust=3,lnorm=2,tolerance=.001,nloops = 50,seed=3)
+z4.val=komeans(validationdata,nclust=4,lnorm=2,tolerance=.001,nloops = 50,seed=3)
+z5.val=komeans(validationdata,nclust=5,lnorm=2,tolerance=.001,nloops = 50,seed=3)
+```
+
+
+```{r}
+val.VAF<-cbind(z3.val$VAF,z4.val$VAF,z5.val$VAF)
+komean.VAF<-rbind(train.VAF,val.VAF);komean.VAF
+```
+
+VAF values of all there komeans clusters from validation dataset are similar to the results from training dataset.
+
+Next, I compare the Centroids of different models
+
+```{r}
+z3.centroids.dif<-(z3$Centroids-z3.val$Centroids);z3.centroids.dif
+z4.centroids.dif<-(z4$Centroids-z4.val$Centroids);z4.centroids.dif
+z5.centroids.dif<-(z5$Centroids-z5.val$Centroids);z5.centroids.dif
+```
+
+There are difference of Centroids between training data and validation data. But the difference is relative low.
+
+
+###9. Compare the chosen k-means solution with a komeans solution from an interpretability perspective. Remember: for fair comparison, for example, compare a 3-cluster kmeans with only a 3 cluster komeans solutions.
+
+The comparision of 4 kmeans clusters and 4 komeans clusters on Germancs is as below.
+
+First, I compare the VAF value of these two models
+
+```{r}
+z4c=komeans(Germancs,nclust=4,lnorm=2,tolerance=.001,nloops = 50,seed=3) 
+Germancs.kmeans4=kmeans(Germancs,centers=4,nstart=50)
+
+VAF.komeans <- z4c$VAF
+VAF.kmeans <- Germancs.kmeans4$betweenss/Germancs.kmeans4$totss
+
+cbind(VAF.komeans,VAF.kmeans)
+
+```
+ 
+ VAF(R squared) value from komean clusters is lower than the kmeans clusters, which suggest that kmeans clusters in this situation is better fit to the dataset.
+
+```{r}
+Germancs.kmeans4$center
+z4c$Centroids
+```
+
+When the class value is high(means better credit classification) in cluster1 and 3 of 4-cluster kmean solution, the corresponding values of amount, duration,CheckingAccountStatus.0.to.200, CreditHistory.NoCredit.AllPaid, and CreditHistory.ThisBank.AllPaidare are low. This result seems confusion in real situation. In comparision, the class value in different clusters of 4-cluster komean solution is correlated with other credit information in the dataset. This means the 4-cluster komean solution is much better to interpret the data.
+
+ Next, I compare the pattern of segmentation with kmeans and komeans.
+ 
+```{r}
+
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancs.kmeans4$cluster+1,
+     main="kmeans 4")
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancs[,9]+1,
+     main="original Credit Class")
+
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=z4c$Group+1,
+     main="komeans4")
+plot(Duration~Amount, data=Germancs,
+     xlab="Amount",ylab="Duration",
+     col=Germancs[,9]+1,
+     main="original Credit Class 4")
+```
+
+From the graph, the pattern of amount in z4c using komeans clustering is more similar to original Credit Class. The 4-komean cluster solution is better to interpret credit information than 4-kmean cluster solution.
+
+
+###10. Summarize results and interpret the clusters/segments you choose as your final solution.
+
+In this report, I analyze the German Credit dataset with clustering analysis as below. 
+
+1.Hierrchical clustering were used to segmentation based on the all 62 variables. The clustering works fine but the cluster pattern doesnot interpret the original credit class in the dataset.
+
+2.Credit related variable were selected and ctree analysis was used to reduce the variables for further cluster analysis. The 8 selected variables are Duration, Amount, CheckingAccountStatus.0.to.200, CheckingAccountStatus.gt.200, CheckingAccountStatus.none, CreditHistory.NoCredit.AllPaid,CreditHistory.ThisBank.AllPaid,CreditHistory.Critical. The orginal Credit Class is also include in the dataset for further comparision. 
+
+3. Different kmeans solutions and komean solutions were generated.The output were analyzed.
+ 
+4. The scree plot of different kmean clusterings were plotted.  4-cluster kmean clustering has a high R squared value which mean this model is good fit with dataset. This model perform very well in Holdout samples. However, this solution is not good at interpreting credit information.
+ 
+5. The 4-cluster kmean solution and 4-cluster komean solution were compared side by side. The 4-cluster kmean solution has a higher R squared value than 4-cluster komean solution, which means that 4-cluster kmean solution fit better to the dataset than 4-cluster komean solution. Both of the solutions predict well in holdout sample. 
+
+Next,the centers of clusters in different solutions were compared and interpreted. The centers of clusters in 4-cluster komean solution is correlated with original credit class. In contrast, the centers of clusters in 4-cluster kmean solution is not correlated with original credit class. Further,the cluster pattern of 4-cluster komean solution in graph fit much better to the original Credit Class than 4-cluster komean solution. All these analysis demonstrate that 4-cluster komean solution is good to interpret the credit information in the dataset.
+
+
+
+###11. You are given the task of recruiting 30 people (per segment) into these segments for focus groups and other follow-up A&U (Attitudinal and Usage( studies).
+
+Question (11) goes beyond simple cluster analysis for row reduction. Think about it, and outline an approach (step-wise, not verbose) that you think will work for this situation.
+Please be precise. Be verbose only if you need to.
+
+a. What approach will you take to recruit people over the telephone?
+
+1.Check the key information of current people in the company.
+2. Perform the cluster segmentation and find the key variables for the people in focus group. 
+3. Collect infromation from applicants and select the person with good prediction of classification to call.
+
+
+b. Assume folks who are recruited will be reimbursed for either coming to a focus group or for AUU surveys. Which of the 5822 folks will you try to recruit?
+
+I would select the people with good prediction to focus group. For AUU surverys, I would select random people to come.
+
+c. How will you identify if a new recruit belongs to a particular segment.
+
+1. Collect information people in current focus group, find key variables
+
+2. Generate a segmentation model based on these information and validate the model.
+
+3. Collect the key information from new recruit.
+
+4. Predict the segment of a new recruit using the segmentation model.
+
+
