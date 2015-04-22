@@ -1,0 +1,592 @@
+---
+title: "DataMining_Xingqi_Assignment4"
+author: "Xingqi"
+date: "March 4, 2015"
+output: html_document
+---
+
+#Part 1
+
+Use the GermanCredit data (package caret) in R
+Cluster-wise regression
+
+###1. Use the training and holdout samples for the GermanCredit data set that you used for the Logistic Regression analysis. Call them, say, Train and Holdout. 
+
+
+Load the dataset
+
+```{r message=FALSE, warning=FALSE}
+library(caret)
+library(MASS)
+data(GermanCredit)
+#str(GermanCredit)
+dim(GermanCredit)
+```
+
+Logistic regression model was used in last analysis. To be easier to understand output, the Credit "Class" is converted to numeric as below. After convertion, 0 stands for bad class and 1 stands for good class.
+
+```{r}
+GermanCredit$Class<-as.numeric(GermanCredit$Class)-1
+```
+
+
+The dataset is split into two parts based on the Credit Class as below.
+
+```{r}
+good.class <- GermanCredit[GermanCredit$Class==1,]
+bad.class <- GermanCredit[GermanCredit$Class==0,]
+```
+
+70% of samples are taken from good.class and bad.class for train dataset.
+The remaining 30% of samples are kept in a holdout dataset.
+
+```{r}
+L1 <- nrow(good.class)
+set.seed(12345)
+sample.good <-sample(1:L1,round(L1*0.7,1),replace=FALSE)
+train.good <- good.class[sample.good,]
+holdout.good <- good.class[-sample.good,]
+```
+
+
+
+```{r}
+set.seed(23456)
+sample.bad <- sample(1:nrow(bad.class),round(nrow(bad.class)*0.7,1),replace=FALSE)
+train.bad <- bad.class[sample.bad,]
+holdout.bad <- bad.class[-sample.bad,]
+```
+
+Combine the training data from good.class and bad.class into one file named as train. In the same way, holdout dataset is combined together.
+
+```{r}
+train<-rbind(train.good,train.bad)
+holdout<-rbind(holdout.good,holdout.bad)
+dim(train)
+dim(holdout)
+```
+
+
+###2. Use the Train data set to build a Cluster-wise Regression Model. Choose "Amount" as the dependent variable. Build 1, 2, and 3 cluster solutions. 4 clusters may be too many for this data set.
+
+a.	Use the clustreg() function that I uploaded on Chalk. Don't use the "Class" variable as in independent variable.
+
+```{r}
+source("clustreg.txt")
+source("clustreg.predict.txt")
+pairs(train[,1:9])
+```
+
+Take most of variables in the dataset as independent variables to generate a cluster-wise regression model.
+
+```{r}
+clustreg.try.1=clustreg(train[,c(2,1,3:9,11:13,15:18,20:26,28:29,31:34,36:39,41:43,46:47,49:51,53:54,56:57,59:61)],1,1,1121,1)
+```
+
+```{r}
+clustreg.try.1$rsq
+```
+
+The fit of this model is OK.
+
+b.	You don't have to use categorical predictors. You can use only the numeric independent variables 1, 3 through 9 as predictors. (NOTE: But if decide to use categorical predictors, make sure you select only (K-1) dummies for the categorical variable – not all K dummies. Also, during some of the cluster-wise regression runs, some regressions may give error and the cluster-wise-regressions procedure may error out. This happens because at some stage in the iterations, the categorical dummies may only have all 1s or 0s, for some of the clusters, and regressions will have problems in that case. It might mean (a) you have to use a different starting random number seed, or (b) that you are trying to extract too many clusters for that data – or (c) that you might have to drop some of the categorical variables).
+
+Using Amount as the dependent variable and the numeric independent variables 1, 3 through 9 as predictors, the cluster-wise regression models are generated as below.
+
+```{r}
+clustreg.train.1=clustreg(train[,c(2,1,3:9)],1,1,1121,1)
+clustreg.train.2=clustreg(train[,c(2,1,3:9)],2,25,1121,12)
+clustreg.train.3=clustreg(train[,c(2,1,3:9)],3,25,1121,12)
+```
+
+The result of one-cluster-wise regression is output as below.
+
+```{r}
+clustreg.train.1$result
+```
+
+The intercept and slopes of Duration, InstallmentRatePercentage, Telephone are statistically significant. The Adjusted R-squared value is 0.5137, which means that fit of model is OK. 
+
+The result of two-cluster-wise regression is output as below.
+
+```{r}
+clustreg.train.2$result
+plot(Amount~Duration, data=train,col=(clustreg.train.2$cluster))
+```
+
+In the model of cluster 1, the intercept and slopes of Duration, InstallmentRatePercentage, ResidenceDuration, NumberExistingCredits, NumberPeopleMaintenance and Telephone are statistically significant. The Adjusted R-quared value is 0.7863, which means the good fit of model. The slope of Duration are positive which mean that Duration are positively correlated with Amount. The slopes of InstallmentRatePercentage, ResidenceDuration, NumberExistingCredits, NumberPeopleMaintenance and Telephone are negative which means that these variables are negative corrlated with Amount.
+
+In the model of cluster 2, the intercept and slopes of Duration, InstallmentRatePercentage and Telephone are statistically significant. The Adjusted R-squared value is 0.6698, which mean the fit of model is good.The slope of Duration are positive which mean that Duration are positively correlated with Amount. The slopes of InstallmentRatePercentage and Telephone are negative which means that these variables are negatively correlated with Amount.
+
+Adjusted R-squared values of both models in these two-cluster-wise regression are higher than adjusted R-squared value of one cluster regression.
+
+
+```{r}
+clustreg.train.2$rsq.best
+```
+
+The best rsq in this cluster-wise regression is 0.8371316. 
+
+
+```{r}
+table(clustreg.train.2$cluster)
+```
+
+The cluster sizes of this cluster-wise regression are 542 and 158.
+
+```{r}
+round(prop.table(table(clustreg.train.2$cluster)),3)
+```
+
+The percent of clusters are 77.4% and 22.6%.
+
+The result of three-cluster-wise regression is as below.
+
+```{r}
+clustreg.train.3$result
+```
+
+In the first model of cluster regression, the intercept and slopes of Duration, InstallmentRatePercentage, Age, NumberPeopleMaintenance and Telephone are statistically significant. The Adjusted R-quared value is 0.7531, which mean the fit of model is good.
+
+In the second model of cluster regression, the intercept and slopes of Duration, InstallmentRatePercentage, NumberPeopleMaintenance, Telephone and ForeignWorker are statistically significant. The Adjusted R-squared value is 0.9112, which mean the fit of model is good.
+
+In the third model of cluster regression, the intercept and slopes of Duration, InstallmentRatePercentage, Telephone and ForeignWorker are statistically significant. The Adjusted R-squared value is 0.8335, which mean the fit of model is good.
+
+All adjusted R-squared values of three models in these three-cluster-wise regression are higher than adjusted R-squared value of one cluster regression.
+
+```{r}
+clustreg.train.3$rsq
+```
+
+The best rsq value of this three-cluster-wise regression is 0.9135157. 
+
+```{r}
+table(clustreg.train.3$cluster)
+```
+
+The cluster sizes of this three-cluster-wise regression are 93, 341 and 266.
+
+```{r}
+round(prop.table(table(clustreg.train.3$cluster)),3)
+```
+
+The percentage these three-cluster are 13.3%, 48.7% and 38%.
+
+
+c.	Plot R2 as a function of the number of clusters
+
+The rsq.best of three cluster regressions are plotted as below.
+
+```{r}
+plot(c(1,2,3),c(clustreg.train.1$rsq.best,clustreg.train.2$rsq.best,clustreg.train.3$rsq.best),ylim=c(0,1),type="l",col=4,main="VAF Plot for GermanCredit Data: Cluster-wise Regression", ylab="Variance Accounted For",xlab="Number of Clusters")
+```
+
+The rsq.best of clustreg.train.3 is the highest among these three cluster regression.
+
+###3.	Perform Holdout validation testing of the cluster-wise regressions using function clustreg.predict() that I have uploaded in R
+The one-cluster regression was used for prediction in holdout.
+
+```{r}
+ho.1=clustreg.predict(clustreg.train.1, holdout[,c(2,1,3:9)])
+ho.1$rsq
+table((ho.1$cluster))
+round(prop.table(table((ho.1$cluster))),3)
+```
+
+The rsq is 0.540261, which is close to the rsq value in train dataset.
+
+The two-cluster regression was used for prediction in holdout.
+
+```{r}
+ho.2=clustreg.predict(clustreg.train.2, holdout[,c(2,1,3:9)])
+```
+
+
+```{r}
+ho.2$rsq
+```
+
+The rsq value in holdout is 0.8428309, which is close to the value in train dataset.
+
+```{r}
+table((ho.2$cluster))
+```
+
+The cluster size in holdout is 233 and 67.
+
+```{r}
+round(prop.table(table((ho.2$cluster))),3)
+```
+
+The percentage of clusters are 77.7% and 22.3%. These values are very close to the values in train.The prediction performance of clustreg.train.2 in holdout is very good. 
+
+The three-cluster regression was used for prediction in holdout as below.
+
+```{r}
+ho.3=clustreg.predict(clustreg.train.3, holdout[,c(2,1,3:9)])
+ho.3$rsq
+table((ho.3$cluster))
+round(prop.table(table((ho.3$cluster))),3)
+```
+
+The rsq value, percentage of cluster sizes are all similar to the values in holdout. The prediction performance of clustreg.train.3 in holdout is very good.
+
+###4.	Choose a model with the best regression interpretation on Training Data, R2 and related significance, and the best holdout performance
+
+Based on the comparision above, I would choose clustreg.train.2 as the best regression interpretation on training data based on the interpretation on Training Data, R2 and related significance and the performance in holdout.
+
+The Amount and Duration in dataset are plotted as below. Two different colors mean different clusters in this regression.
+
+```{r}
+plot(Amount~Duration, data=train,col=(clustreg.train.2$cluster))
+plot(Amount~Duration, data=holdout,col=(ho.2$cluster))
+```
+
+
+###5.	Summarize your results – for both Training and Holdout
+
+In this study, cluster-wise regression are performed on the train and holdout. Using Amount as the dependent variable and the 8 numeric independent variables as predictors, three cluster-wise regression models with 1, 2 or 3 clusters are generated using training dataset. The two-cluster regression models are selected as final model based on the regression interpretation on Training Data, R2 and related significance and the performance in holdout. 
+
+In first cluster of this two-cluster regression, the intercept and slopes of Duration, InstallmentRatePercentage, ResidenceDuration, NumberExistingCredits, NumberPeopleMaintenance and Telephone are statistically significant. The Adjusted R-squared value is  0.7863, which mean the fit of model is good.The slope of Duration are positive which mean that Duration are positively correlated with Amount. The slopes of InstallmentRatePercentage, NumberExistingCredits, NumberPeopleMaintenance and Telephone are negative which means that these variables are negatively correlated with Amount. 
+
+In second cluster of this two-cluster regression, the intercept and slopes of Duration, InstallmentRatePercentage and Telephone are statistically significant. The Adjusted R-squared value is 0.6698, which mean the fit of model is good.The slope of Duration are positive which mean that Duration are positively correlated with Amount. The slopes of InstallmentRatePercentage and Telephone are negative which means that these variables are negatively correlated with Amount. 
+
+Rsq.best in holdout is 0.8371316, which is similar to rsq.best 0.8428309 in train dataset. The proportion of cluster size are 77.7% and 22.3% in train dataset which are similar to 77.4% and 22.6% in holdout. This means the model performance is good.
+
+
+#Part 2
+
+Linear and Quadratic Discriminant Analysis and Ensemble Models
+
+###1.  Use the training and holdout samples for the GermanCredit data set that you used for the Logistic Regression analysis. Call them, say, Train and Holdout. 
+
+The dataset is split as in part 1.
+
+###2.	Use the Train data set to build Linear Discriminant Analysis (LDA) and Quadratic Discriminant analysis (QDA)  models using function lda() and qda() in package MASS. 
+a.	Use the "Class" variable as the dependent variable.
+b.	NOTE Be careful with the categorical predictors. Since LDA and QDA use pooled or within group covariance matrices, some of the dummies might give problems due to linear dependencies or taking on constant values across the groups. You may have to add predictors one at a time to assess which dummy predictor (or predictors create problems so that you don’t use them in the final model).
+
+Using few independent variables in the train dataset, LDA model is generated as below.
+
+```{r}
+z2=lda(Class~(Duration + Amount + InstallmentRatePercentage + Age + CheckingAccountStatus.lt.0 + CheckingAccountStatus.0.to.200 + CreditHistory.NoCredit.AllPaid + CreditHistory.ThisBank.AllPaid + CreditHistory.PaidDuly + CreditHistory.Delay + Purpose.NewCar + Purpose.Furniture.Equipment + Purpose.Radio.Television + Purpose.DomesticAppliance + Purpose.Repairs + Purpose.Education + Purpose.Business + SavingsAccountBonds.lt.100 + SavingsAccountBonds.100.to.500 + EmploymentDuration.4.to.7 + Property.RealEstate + Property.Insurance),data=train)
+```
+
+This lda model is print as below.
+
+```{r}
+print(z2)
+```
+
+The scaling is divided by mean squared scalings.
+
+```{r}
+z2$scaling/(sum(z2$scaling^2))^0.5
+```
+
+The lda groups are plot as below.
+
+```{r}
+plot(z2)
+```
+
+There are certain overlaping between two groups.
+
+```{r}
+z2.train=table(train[,10],predict(z2)$class); z2.train
+round(prop.table(z2.train,1),2)
+sum(diag(z2.train))/sum(z2.train)
+```
+
+Using the formula from stepAIC of logistic regression in the last assignment, a step.lda model is generated.
+
+```{r}
+z.step.lda=lda(Class ~ Duration + Amount + InstallmentRatePercentage + 
+    Age + ForeignWorker + CheckingAccountStatus.lt.0 + CheckingAccountStatus.0.to.200 + 
+    CreditHistory.NoCredit.AllPaid + CreditHistory.ThisBank.AllPaid + 
+    CreditHistory.PaidDuly + CreditHistory.Delay + Purpose.NewCar + 
+    Purpose.UsedCar + Purpose.Furniture.Equipment + Purpose.Radio.Television + 
+    Purpose.DomesticAppliance + Purpose.Repairs + Purpose.Education + 
+    Purpose.Business + SavingsAccountBonds.lt.100 + SavingsAccountBonds.100.to.500 + 
+    EmploymentDuration.1.to.4 + EmploymentDuration.4.to.7 + EmploymentDuration.gt.7 + 
+    Personal.Male.Divorced.Seperated + Personal.Female.NotSingle + 
+    Property.RealEstate + Property.Insurance + Property.CarOther + 
+    OtherInstallmentPlans.Bank, data=train)
+
+print(z.step.lda)
+z.step.lda$scaling/(sum(z.step.lda$scaling^2))^0.5
+plot(z.step.lda)
+```
+
+
+```{r}
+z.step.lda.train=table(train[,10],predict(z.step.lda)$class); z.step.lda.train
+sum(diag(z.step.lda.train))/sum(z.step.lda.train)
+round(prop.table(table(train[,10],predict(z.step.lda)$class),1),2)
+
+```
+
+The overall accuracy is 79.86%. The correction ratio of in-sample prediction in bad class and good class are 56% and 90%. These values are better than the prediction of z2. So I would choose z.step.lda for further analysis.
+
+Using the same variables of z2 as independent variables, the QDA model is generated as below.
+
+```{r}
+z.qda=qda(Class~(Duration + Amount + InstallmentRatePercentage + Age + CheckingAccountStatus.lt.0 + CheckingAccountStatus.0.to.200 + CreditHistory.NoCredit.AllPaid + CreditHistory.ThisBank.AllPaid + CreditHistory.PaidDuly + CreditHistory.Delay + Purpose.NewCar + Purpose.Furniture.Equipment + Purpose.Radio.Television + Purpose.DomesticAppliance + Purpose.Repairs + Purpose.Education + Purpose.Business + SavingsAccountBonds.lt.100 + SavingsAccountBonds.100.to.500 + EmploymentDuration.4.to.7 + Property.RealEstate + Property.Insurance), data=train,CV=FALSE)
+z.qda$prior
+round(z.qda$means,2)
+z.qda.train=table(train[,10],predict(z.qda)$class); z.qda.train
+sum(diag(z.qda.train))/sum(z.qda.train)
+round(prop.table(table(train[,10],predict(z.qda)$class),1),2)
+```
+
+The overall accuracy is 80.14%. The correction ratio of in-sample prediction in bad class and good class are 56% and 91%. 
+
+Using the formula from stepAIC of logistic regression in the last assignment, z.step.qda model is generated.
+
+
+```{r}
+z.step.qda=qda(Class ~ Duration + Amount + InstallmentRatePercentage + 
+    Age + ForeignWorker + CheckingAccountStatus.lt.0 + CheckingAccountStatus.0.to.200 + 
+    CreditHistory.NoCredit.AllPaid + CreditHistory.ThisBank.AllPaid + 
+    CreditHistory.PaidDuly + CreditHistory.Delay + Purpose.NewCar + 
+    Purpose.UsedCar + Purpose.Furniture.Equipment + Purpose.Radio.Television + 
+    Purpose.DomesticAppliance + Purpose.Repairs + Purpose.Education + 
+    Purpose.Business + SavingsAccountBonds.lt.100 + SavingsAccountBonds.100.to.500 + 
+    EmploymentDuration.1.to.4 + EmploymentDuration.4.to.7 + EmploymentDuration.gt.7 + 
+    Personal.Male.Divorced.Seperated + Personal.Female.NotSingle + 
+    Property.RealEstate + Property.Insurance + Property.CarOther + 
+    OtherInstallmentPlans.Bank, data=train,CV=FALSE)
+z.step.qda$prior
+round(z.step.qda$means,2)
+z.step.qda.train=table(train[,10],predict(z.step.qda)$class); z.step.qda.train
+sum(diag(z.step.qda.train))/sum(z.step.qda.train)
+round(prop.table(table(train[,10],predict(z.step.qda)$class),1),2)
+```
+
+The overall accuracy is 80.14%. The correct ratio of in-sample prediction in bad class and good class are 71% and 87%. Comparing with z.qda model, the prediction in bad class is significant improved while the prediction in good class reduced slightly. So I would choose z.step.qda model for further analysis.
+
+###3.	Perform Holdout validation testing of LDA and QDA using the Holdout sample.
+
+Below is the holdout validation of z.step.lda.
+
+
+```{r}
+z.step.lda.holdout=table(holdout[,10],predict(z.step.lda,holdout)$class);z.step.lda.holdout
+sum(diag(z.step.lda.holdout))/sum(z.step.lda.holdout)
+round(prop.table(table(holdout[,10],predict(z.step.lda,holdout)$class),1),2)
+```
+
+The overall accuracy is 76%, which is a little lower than 79.86% in train. So the model prediction is good. 47% of bad class and 90% of good class are predicted corretly, which are lower than 56% of bad class and 90% of good class in train. But overall, the model validation is good.
+
+
+```{r}
+z.step.qda.holdout=table(holdout[,10],predict(z.step.qda,holdout)$class);z.step.qda.holdout
+sum(diag(z.step.qda.holdout))/sum(z.step.qda.holdout)
+round(prop.table(table(holdout[,10],predict(z.step.qda,holdout)$class),1),2)
+```
+
+The overall accuracy is 71%, which is a lower than 82.28% in train. So the model prediction is OK. 50% of bad class and 80% of good class are predicted corretly, which are lower than 71% of bad class and 87% of good class in train. Overall, the model validation of z.step.qda.holdout is OK.
+
+
+###4.	By now, you would have, across the 3 assignments, built Logistic Regression, Classification Tree, LDA, and QDA predictive models for predicting the "Class" variable.  Build another model called the "Ensemble" model.  
+The ensemble model simply takes the predictions of "Class" for each observation from the 4 models that you already built. It then applies the "Majority rule". To illustrate, if the predictions from Logistic Regression, Classification Trees, LDA, and QDA are Bad, Bad, Bad, and Good respectively for an observation, resulting in 3 predictions of  Bad and 1 prediction of Good, then the Ensemble model would yield a prediction of Bad, since majority of the models predict "Bad" (3 > 1). If 2 predictions are Good and 2 are Bad, you can break the tie with a random choice. Make sure the choice of breaking ties is random, and not consistently "Good" or "Bad". Predict all observations in Training and Holdout using the Ensemble model.
+
+Create a table contain all of the result.
+
+```{r}
+train.pred.lda <- predict(z.step.lda)$class
+holdout.pred.lda <- predict(z.step.lda,holdout)$class
+lda.prediction<- c(train.pred.lda, holdout.pred.lda)
+qda.prediction<- c(predict(z.step.qda)$class,predict(z.step.qda,holdout)$class)
+tree.prediction<-read.csv("tree.prediction",header=TRUE)
+glm.step.prediction<-read.csv("glm.step.prediction",,header=TRUE)
+Ensemble<-as.data.frame(cbind(Actual.Class=c(train[,10],holdout[,10]),glm.prediction=glm.step.prediction[,2],tree.prediction=(tree.prediction[,2]-1),lda.prediction=(as.numeric(lda.prediction)-1),qda.prediction=(as.numeric(qda.prediction)-1)))
+
+```
+
+In the final Ensemble table, 0 means bad Gredit Class and 1 means good Gredit Class. The first 700 rows are from traindata. The last 300 rows are from holdout.
+
+Add one column of vote from 4 models
+
+```{r}
+sum<-c()
+vote<-c()
+for (i in 1:1000) {
+        sum[i]=sum(Ensemble[i,2:5])
+        if (sum[i]>2) {
+               vote[i]=1
+        }
+        else if (sum[i]==2) {
+               vote[i]=sample(0:1,1, replace=TRUE)
+        }
+        else {
+               vote[i]=0
+                }
+}
+Ensemble$vote <- vote
+head(Ensemble)
+```
+
+Table for entire dataset with Ensemble method.
+
+```{r}
+ensemble.f=table(Ensemble[,1],Ensemble[,6]); ensemble.f
+sum(diag(ensemble.f))/sum(ensemble.f)
+round(prop.table(table(Ensemble[,1],Ensemble[,6]),1),3)
+```
+
+
+The overall accuracy is 79.4%. 55% of bad class and 89.9% of good class are predicted corretly
+
+Table of Ensemble method with train dataset.
+
+```{r}
+ensemble.train=table(Ensemble[1:700,1],Ensemble[1:700,6]); ensemble.train
+sum(diag(ensemble.train))/sum(ensemble.train)
+round(prop.table(table(Ensemble[1:700,1],Ensemble[1:700,6]),1),2)
+```
+
+The overall accuracy is 81.16%. The correct ratio of train prediction in bad class and good class are 59% and 91%. 
+
+Table for holdout.
+
+```{r}
+ensemble.holdout=table(Ensemble[701:1000,1],Ensemble[701:1000,6]); ensemble.holdout
+sum(diag(ensemble.holdout))/sum(ensemble.holdout)
+round(prop.table(table(Ensemble[701:1000,1],Ensemble[701:1000,6]),1),3)
+```
+
+The overall accuracy is 74.33%. The correct ratio of prediction in bad class and good class are 46.7% and 86.2%.
+
+
+###5.	Summarize your results – for both Training and Holdout. Which of the models yielded the best predictions overall, and which models yielded the best predictions of "Bad"? Do you like the Ensemble model? Did it predict  as well as you expected it to predict?
+
+**glm.prediction**
+
+Table for train.
+
+```{r}
+table(Ensemble[1:700,1],Ensemble[1:700,2])
+round(prop.table(table(Ensemble[1:700,1],Ensemble[1:700,2]),1),3)
+```
+
+Table for holdout.
+
+```{r}
+table(Ensemble[701:1000,1],Ensemble[701:1000,2])
+round(prop.table(table(Ensemble[701:1000,1],Ensemble[701:1000,2]),1),3)
+```
+
+Table for entire dataset.
+
+```{r}
+glm.table=table(Ensemble[,1],Ensemble[,2]); glm.table
+glm.accuracy=sum(diag(glm.table))/sum(glm.table); glm.accuracy
+round(prop.table(table(Ensemble[,1],Ensemble[,2]),1),3)
+```
+
+The overall accuracy is 78.4%. The misclassification rate is (74+143)/(157+143+74+626) = 21.7%. The model predict 52.3% actual bad Credit class and 89.4% actual good Credit class.
+
+**tree.prediction**
+
+Table for train.
+
+```{r}
+table(Ensemble[1:700,1],Ensemble[1:700,3])
+round(prop.table(table(Ensemble[1:700,1],Ensemble[1:700,3])),3)
+```
+
+Table for holdout.
+
+```{r}
+table(Ensemble[701:1000,1],Ensemble[701:1000,3])
+round(prop.table(table(Ensemble[701:1000,1],Ensemble[701:1000,3])),3)
+```
+
+Table for entire dataset.
+
+```{r}
+table(Ensemble[,1],Ensemble[,3])
+round(prop.table(table(Ensemble[,1],Ensemble[,3]),1),3)
+```
+
+The overall accuracy is (137+601)/(137+163+99+601) = 73.8%. The misclassification rate is (163+99)/(137+163+99+601) = 26.2%. The model predict 45.7% actual bad Credit class and 85.9% actual good Credit class.
+
+**lda.prediction**
+
+Table for train.
+
+```{r}
+table(Ensemble[1:700,1],Ensemble[1:700,4])
+round(prop.table(table(Ensemble[1:700,1],Ensemble[1:700,4]),1),3)
+```
+
+Table for holdout.
+
+```{r}
+table(Ensemble[701:1000,1],Ensemble[701:1000,4])
+round(prop.table(table(Ensemble[701:1000,1],Ensemble[701:1000,4]),1),3)
+```
+
+Table for entire dataset.
+
+```{r}
+table(Ensemble[,1],Ensemble[,4])
+round(prop.table(table(Ensemble[,1],Ensemble[,4]),1),3)
+```
+
+The overall accuracy is (159+628)/(159+141+72+628) = 78.7%. The misclassification rate is (141+72)/(159+141+72+628) = 21.3%. The model predict 53% actual bad Credit class and 89.7% actual good Credit class.
+
+
+**qda.prediction**
+
+Table for train.
+
+```{r}
+table(Ensemble[1:700,1],Ensemble[1:700,5])
+round(prop.table(table(Ensemble[1:700,1],Ensemble[1:700,5]),1),3)
+```
+
+Table for holdout.
+
+```{r}
+table(Ensemble[701:1000,1],Ensemble[701:1000,5])
+round(prop.table(table(Ensemble[701:1000,1],Ensemble[701:1000,5]),1),3)
+```
+
+Table for entire dataset.
+
+```{r}
+table(Ensemble[,1],Ensemble[,5])
+round(prop.table(table(Ensemble[,1],Ensemble[,5]),1),3)
+```
+
+The overall accuracy is (195+594)/(195+105+106+594) = 78.9%. The misclassification rate is (105+106)/(195+105+106+594) = 21.1%. The model predict 65% actual bad Credit class and 84.9% actual good Credit class.
+
+**Ensemble method**
+
+Table for train.
+
+```{r}
+table(Ensemble[1:700,1],Ensemble[1:700,6])
+round(prop.table(table(Ensemble[1:700,1],Ensemble[1:700,6]),1),3)
+```
+
+Table for holdout.
+
+```{r}
+table(Ensemble[701:1000,1],Ensemble[701:1000,6])
+round(prop.table(table(Ensemble[701:1000,1],Ensemble[701:1000,6]),1),3)
+```
+
+Table for entire dataset.
+
+```{r}
+table(Ensemble[,1],Ensemble[,6])
+round(prop.table(table(Ensemble[,1],Ensemble[,6]),1),3)
+```
+
+The overall accuracy is (161+629)/(161+139+71+629) = 79%. The misclassification rate is (139+71)/(161+139+71+629) = 21%. The model predict 53.7% actual bad Credit class and 89.9% actual good Credit class.
+
+
+Take together, the overall accuary of Ensemble method is the best among all different model in this study. qda model gives the best predictions of "Bad" Credit and Ensemble method gives the best predictions of "Good" Credit. I like Ensemble method. It predict well.
