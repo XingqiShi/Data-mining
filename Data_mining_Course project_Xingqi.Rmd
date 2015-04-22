@@ -1,0 +1,413 @@
+---
+title: "Datamining_CourseProject_Xingqi"
+author: "Xingqi"
+date: "February 22, 2015"
+output: html_document
+---
+
+
+To expand wholesale market for Recheio Stores in Portugal, a dataset containing the 440 customer’s spending information is analyzed in this study. Three-cluster K-means Clustering method is performed to identify the consuming pattern of customers. Subsequently, LDA model is built to predict K-means Clusters based on the regions, channels and sum.spending class. Using these data mining tools, the strategies to CEO of Recheio are proposed.
+
+### 1.Load the data and visualize it.
+
+```{r}
+wholesale<-read.csv("~/Desktop/Data mining/course project/Wholesale customers data.csv")
+str(wholesale)
+plot(wholesale)
+```
+
+Add one column to calculate sum.spending of each shopper and classify shoppers based on sum.spending.
+
+```{r}
+L<-nrow(wholesale)
+sum.spending<-c()
+for (i in 1:L){
+        sum.spending[i]=sum(wholesale[i,3:8])
+}
+
+```
+
+
+Classifiy the sum.spending into catergories. 
+
+3: sum.spending below 40000
+2: 40000-100000
+1: 100000-Inf
+
+
+```{r}
+
+wholesale$Sum.spending<-sum.spending
+range(sum.spending)
+interval<-(max(sum.spending)-min(sum.spending))/3
+seq<-c(0, 40000, 100000,+Inf)
+sum.spending.class<-cut(wholesale$Sum.spending,seq,labels=c(3:1))
+table(sum.spending.class)
+wholesale$Spending.class<-sum.spending.class
+w.scale<-as.data.frame(scale(wholesale[,3:9]))
+w.scale$Channel<-as.factor(wholesale$Channel)
+w.scale$Region<-as.factor(wholesale$Region)
+w.scale$Spending.class<-sum.spending.class
+head(w.scale)
+```
+
+
+### 2.Split dataset into train and holdout.
+
+```{r}
+
+length <- nrow(w.scale)
+L<-1:length
+set.seed(12345)
+training<-sample(L, length*0.7,replace=FALSE)
+train<- w.scale[training,]
+holdout<- w.scale[-training,]
+```
+
+
+###3. kmean clustering
+
+```{r}
+screetest <- function(data, seed=1234){
+         VAF<-c()
+         for (i in 1:15){
+                set.seed(seed)
+                VAF[i]<-((kmeans(data, centers=i,nstart=50))$betweenss)/((kmeans(data, centers=i,nstart=50))$totss)
+                }
+        print(round(VAF,3))
+        }    
+```
+
+```{r}
+results<-screetest(train[,1:7])
+screetestresult<-cbind(1:15,results)
+colnames(screetestresult)<-c("Number of clusters","VAF")
+plot(screetestresult, type="b", xlab="Number of Clusters",
+ylab="R squared")
+```
+
+
+
+```{r}
+set.seed(589889)
+train.kmeans.3=kmeans(train[,1:7],centers=3,nstart=50)
+train.kmeans.3$size
+round(train.kmeans.3$centers,2)
+```
+
+```{r}
+pairs(train[,1:7],
+      col=train.kmeans.3$cluster+1,
+main="kmeans clustering.3 cluster")
+```
+
+
+### 4. Kmeans clustering validation.
+
+```{r}
+holdout.kmeans.3=kmeans(holdout[,1:7],centers=train.kmeans.3$centers,nstart=50)
+
+holdout.kmeans.3$centers
+train.kmeans.3$centers
+
+holdout.kmeans.3$size
+train.kmeans.3$size
+
+round((holdout.kmeans.3$size)/sum((holdout.kmeans.3$size)),3)
+round((train.kmeans.3$size)/sum((train.kmeans.3$size)),3)
+
+proportion.table<-rbind(train=round((train.kmeans.3$size)/sum((train.kmeans.3$size)),3),
+holdout=round((holdout.kmeans.3$size)/sum((holdout.kmeans.3$size)),3))
+colnames(proportion.table)=c("1","2","3")
+```
+
+
+
+
+### 5.Summary of classification
+
+
+```{r}
+train$Cluster<-as.factor(train.kmeans.3$cluster)
+holdout$Cluster<-as.factor(holdout.kmeans.3$cluster)
+```
+
+```{r}
+
+table.channel<-table(Channel=train[,8],Cluster=train$Cluster); 
+
+table.channel
+round(prop.table(table.channel,2),3)
+
+round(prop.table(table.channel,1),3)
+
+table.region<-table(Region=train[,9],Cluster=train$Cluster); 
+
+table.region
+round(prop.table(table.region,2),3)
+
+round(prop.table(table.region,1),3)
+```
+
+They cluster distribution are clearly different between different regions and different channels.
+
+
+### 6. Modeling
+###6.1 Build multinomial Logit models.
+
+```{r}
+library(nnet)
+multinom.train<-multinom(Cluster~Channel+Region, data=train)
+summary(multinom.train)
+multinom.train.null<-multinom(Cluster~1, data=train)
+summary(multinom.train.null)
+multinom.train2<-multinom(Cluster~Channel+Region+Spending.class, data=train)
+summary(multinom.train2)
+```
+
+prediction with multinom.train2 in train dataset
+
+
+```{r}
+table.multinom2<-table(Cluster=train$Cluster,fitted=predict(multinom.train2,type="class")); table.multinom2
+sum(diag(table.multinom2))/sum(table.multinom2)
+round(prop.table(table.multinom2,1),3)
+```
+
+The overall accuracy is 90.3%. The misclassification rate is 9.7%. Predict very well in good cluster.
+
+prediction in holdout
+
+
+```{r}
+table.multinom2.holdout<-table(Cluster=holdout$Cluster,prediction=predict(multinom.train2,newdata=holdout,type="class")); table.multinom2.holdout
+sum(diag(table.multinom2.holdout))/sum(table.multinom2.holdout)
+round(prop.table(table.multinom2.holdout,1),3)
+```
+
+The overall accuracy is 81.8%. The misclassification rate is 18.2%. Predict very well in high profit cluster.
+
+
+###6.2 lda
+
+```{r}
+library(MASS)
+z2=lda(Cluster~Channel+Region+Spending.class,data=train)
+summary(z2)
+print(z2)
+z2$scaling/(sum(z2$scaling^2))^0.5
+plot(z2)
+table.train.lda<-table(train=train[,11],fitted=predict(z2)$class);table.train.lda
+sum(diag(table.train.lda))/sum(table.train.lda)
+round(prop.table(table.train.lda,1),2)
+```
+
+The overall accuracy is 88.3%. The in sample prediction of lda method works great in Cluster 1, 3.
+
+In holdout,
+
+
+```{r}
+table.holdout.lda<-table(holdout=holdout[,11],prediction=predict(z2,holdout)$class)
+table.holdout.lda
+sum(diag(table.holdout.lda))/sum(table.holdout.lda)
+round(prop.table(table.holdout.lda,1),2)
+```
+
+lda works great for high to medium spending cluster.
+
+
+###6.3 Build a tree model.
+
+```{r}
+library(rpart)
+set.seed(123)
+x=rpart(Cluster~Channel+Region+Spending.class,data=train,method="class",control=rpart.control(cp=0,minsplit=30,xval=10, maxsurrogate=0))
+par(mai=c(0.1,0.1,0.1,0.1))
+plot(x,main="Complete Tree: train",col=3, compress=TRUE, branch=0.2,uniform=TRUE)
+text(x,cex=0.6,col=4,use.n=TRUE,fancy=FALSE,fwidth=0.3,fheight=0.3,bg=c(5))
+```
+
+```{r}
+which.min(x$cptable[,"xerror"])
+plotcp(x,minline=TRUE,col=4)
+```
+
+```{r}
+min.cp<-x$cptable[which.min(x$cptable[,"xerror"]),"CP"]
+set.seed(123)
+x2=rpart(Cluster~Channel+Region+Spending.class,data=train,method="class",control=rpart.control(cp=min.cp,minsplit=30,xval=10, maxsurrogate=0))
+par(mai=c(0.1,0.1,0.1,0.1))
+plot(x2,main="Classification Pruned Tree: train",col=3, compress=TRUE, branch=0.2,uniform=TRUE)
+text(x2,cex=0.6,col=4,use.n=TRUE,fancy=TRUE,fwidth=0.4,fheight=0.4,bg=c(5))
+```
+
+
+```{r}
+table.train.tree<-table(train=train$Cluster,prediction=predict(x2,type="class"));table.train.tree
+```
+
+```{r}
+sum(diag(table.train.tree))/sum(table.train.tree)
+```
+
+The overall accuracy is 88.6%. The misclassification rate is 11.4%. The prediction of high profit cluster is bad. 
+
+```{r}
+round(prop.table(table.train.tree,1),3)
+```
+
+Predict very well in good class is bad. 
+
+The table of prediction is as below.
+
+```{r}
+table.holdout<-table(holdout=holdout[,11],prediction=predict(x2,newdata=holdout,type="class")); table.holdout
+```
+
+
+
+```{r}
+round(prop.table(table.holdout,1),2)  
+```
+
+
+
+###6.4 Ensembel method
+
+Create a table contain all of the result.
+
+```{r}
+train.pred.lda <- predict(z2)$class
+holdout.pred.lda <- predict(z2,holdout)$class
+lda.prediction<- c(train.pred.lda, holdout.pred.lda)
+
+
+train.pred.multi=predict(multinom.train2,type="class")
+holdout.pred.multi=predict(multinom.train2,newdata=holdout,type="class")
+multinom.pred<-c(train.pred.multi,holdout.pred.multi)
+
+train.pred.tree=predict(x2,type="class")
+holdout.pred.tree=predict(x2,newdata=holdout,type="class")
+tree.pred<-c(train.pred.tree,holdout.pred.tree)
+
+Ensemble<-as.data.frame(cbind(kmeans.Cluster=c(train[,11],holdout[,11]),lda.prediction=lda.prediction,multinom.pred=multinom.pred,tree.prediction=tree.pred))
+
+head(Ensemble)
+```
+
+
+
+
+```{r}
+vote<-c()
+for (i in 1:440) {
+        if (Ensemble[i,2]==Ensemble[i,3]){
+                vote[i]=Ensemble[i,2]
+        }
+        else {
+                if (Ensemble[i,2]==Ensemble[i,4]){
+                     vote[i]=Ensemble[i,2]   
+                }
+                else {
+                        if (Ensemble[i,3]==Ensemble[i,4]){
+                                vote[i]=Ensemble[i,3]
+                        }
+                        else {
+                            vote[i]=sample(1:3, replace=TRUE)    
+                        }
+                }
+        }
+ }  
+
+
+
+Ensemble$vote <- vote
+head(Ensemble)
+```
+
+
+
+Table for entire dataset.
+
+```{r}
+table(Ensemble[,1],Ensemble[,5])
+round(prop.table(table(Ensemble[,1],Ensemble[,5]),1),3)
+```
+
+Table for train.
+
+```{r}
+table(Ensemble[1:308,1],Ensemble[1:308,5])
+round(prop.table(table(Ensemble[1:308,1],Ensemble[1:308,5]),1),2)
+```
+
+Table for holdout.
+
+```{r}
+table(Ensemble[309:440,1],Ensemble[309:440,5])
+round(prop.table(table(Ensemble[309:440,1],Ensemble[309:440,5]),1),3)
+```
+
+
+###7.Model selection
+
+To predict high spending cluster, lda model and multinom2 works great.
+
+lda
+
+```{r}
+table.train.lda<-table(actual=train[,11],prediction=predict(z2)$class);table.train.lda
+sum(diag(table.train.lda))/sum(table.train.lda)
+round(prop.table(table.train.lda,1),2)
+round(prop.table(table.train.lda,2),2)
+```
+
+multinorm2
+
+```{r}
+table.multinom2<-table(actual=train$Cluster,prediction=predict(multinom.train2,type="class")); table.multinom2
+sum(diag(table.multinom2))/sum(table.multinom2)
+round(prop.table(table(train$Cluster,predict(multinom.train2,type="class")),1),3)
+table.multinom2.holdout<-table(actual=holdout$Cluster,prediction=predict(multinom.train2,newdata=holdout,type="class")); table.multinom2.holdout
+sum(diag(table.multinom2.holdout))/sum(table.multinom2.holdout)
+round(prop.table(table.multinom2.holdout,1),3)
+round(prop.table(table.multinom2.holdout,2),3)
+```
+
+holdout
+lda
+```{r}
+table.holdout.lda<-table(actual=holdout[,11],prediction=predict(z2,holdout)$class);table.holdout.lda
+sum(diag(table.holdout.lda))/sum(table.holdout.lda)
+round(prop.table(table.holdout.lda,1),2)
+round(prop.table(table.holdout.lda,2),2)
+```
+
+multinom2
+```{r}
+table.multinom2.holdout<-table(actual=holdout$Cluster,prediction=predict(multinom.train2,newdata=holdout,type="class")); table.multinom2.holdout
+sum(diag(table.multinom2.holdout))/sum(table.multinom2.holdout)
+round(prop.table(table.multinom2.holdout,1),3)
+```
+
+lda model is good at predicting high spending Cluster. So lda strategy is chosen to be final strategy.
+
+###8.Interpret results and strategies.
+
+
+```{r}
+w.final<-rbind(train,holdout)
+```
+
+```{r}
+
+z2$scaling/(sum(z2$scaling^2))^0.5
+table.lda<-table(w.final[,11],predict(z2, w.final)$class)
+sum(diag(table.lda))/sum(table.lda)
+round(prop.table(table.lda,1),2)
+
+```
+
+
+To expand the high-spending shopper Clusters, the strategies are expanding market in Oporto or Others regions except Oporto and Lisbon with retail stores. The pattern of departments is high in all departments of Fresh, Milk, Grocery, Frozen, Detergents paper and Delicassen. To target the medium-spending shopper Cluster, the strategies of new retail stores in Oporto or Others regions except Oporto and Lisbon  and pattern of department is:  low Fresh, medium Milk, medium Grocery, medium Frozen, high Detergents paper, high Delicassen. To expand marketing of low-spending shoppers, the strategy is to open new stores in Lisbon or Others regions except Oporto and Lisbon with channel 1 and the pattern of departments is:  medium Fresh, low Milk, low Grocery, medium Frozen, low Detergents paper, low Delicassen, low sum.spending.
